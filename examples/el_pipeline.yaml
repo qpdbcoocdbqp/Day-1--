@@ -1,0 +1,19 @@
+$schema: !pw.schema_from_types
+  colA: str
+  colB: int
+  colC: float
+
+$source: !pw.io.fs.read
+  path: ./input_data/
+  format: json
+  schema: $schema
+  name: input_connector
+
+output: !pw.io.csv.write
+  table: $source
+  filename: ./output.csv
+  name: output_connector
+
+persistence_config: !pw.persistence.Config
+  backend: !pw.persistence.Backend.filesystem
+    path: ./persistence_storage/
