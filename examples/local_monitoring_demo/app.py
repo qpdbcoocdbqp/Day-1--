@@ -1,22 +1,18 @@
-import logging
-import time
-
 import pathway as pw
+import time
+import logging
+import os
+
 
 logging.basicConfig(level=logging.INFO)
 
-pw.set_license_key(key="***")
-pw.set_monitoring_config(
-    server_endpoint=None,#"http://localhost:4317", 
-    detailed_metrics_dir="./monitoring/metrics"
-    )
-
-
 class DemoStream(pw.io.python.ConnectorSubject):
     def run(self):
+        counter = 0
         while True:
-            logging.info("Producing value")
-            self.next(value=1)
+            # logging.info(f"Producing value: {counter}")
+            self.next(value=counter)
+            counter += 1
             time.sleep(1)
 
 class InputSchema(pw.Schema):
@@ -26,4 +22,5 @@ table = pw.io.python.read(DemoStream(), schema=InputSchema)
 table = table.reduce(sum=pw.reducers.sum(pw.this.value))
 pw.io.null.write(table)
 
-pw.run()
+logging.info("Starting Pathway ETL with internal monitoring dashboard...")
+pw.run(monitoring_level=pw.MonitoringLevel.ALL)
