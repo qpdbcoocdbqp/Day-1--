@@ -13,7 +13,6 @@ Streaming EL exploration. Playing with [Day 1 ◑](https://www.youtube.com/watch
 
 ## Exploration
 
-
 * **Setup**
 
     ```sh
@@ -49,3 +48,34 @@ Streaming EL exploration. Playing with [Day 1 ◑](https://www.youtube.com/watch
     # generate batch input, write 1000 files or duration time is 30 seconds.
     python -m src.input_generate --mode batch --files 1000 --duration 30
     ```
+
+### Monitor
+
+* **start compose**
+
+    ```sh
+    cd examples\local_monitoring_demo
+    docker compose up -d
+    ```
+
+* **run pathway (kafka source)**
+
+    ```sh
+    cd examples\local_monitoring_demo
+    python kafka_app.py
+    ```
+
+* **run kafka producer**
+
+    ```sh
+    # install kafka
+    uv pip install confluent_kafka
+
+    # run producer
+    cd examples\local_monitoring_demo
+    python kafka_producer.py
+    ```
+
+* **Dashboard**
+
+  * **Grafana**: `http://localhost:3000`
