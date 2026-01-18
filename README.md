@@ -49,6 +49,28 @@ Streaming EL exploration. Playing with [Day 1 ◑](https://www.youtube.com/watch
     python -m src.input_generate --mode batch --files 1000 --duration 30
     ```
 
+
+### Dev in Docker
+
+* **build docker image**
+
+    ```sh
+    cd examples/pathway_demo
+    docker build -t kafka-prducer:dev .
+    ```
+* **pull pathway image**
+
+    ```sh
+    docker pull pathwaycom/pathway:0.28.0
+    ```
+
+* **run docker compose**
+
+    ```sh
+    cd examples/pathway_demo
+    docker compose up -d
+    ```
+
 ### Monitor
 
 * **start compose**
