@@ -101,3 +101,18 @@ Streaming EL exploration. Playing with [Day 1 ◑](https://www.youtube.com/watch
 * **Dashboard**
 
   * **Grafana**: `http://localhost:3000`
+
+
+### Kafka Linear Regression
+
+* **run compose**
+
+```sh
+cd examples\kafka_linear_regression
+docker compose up -d
+```
+
+* **check result**
+```sh
+cd examples/kafka_linear_regression/src
+```

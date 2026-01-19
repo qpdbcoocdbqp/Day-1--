@@ -2,4 +2,6 @@
 .venv
 .env
 *.pyc
+*.csv
+
 dev-*

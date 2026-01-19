@@ -1,9 +1,7 @@
 # Copyright © 2026 Pathway
 
 import os
-import dotenv
 import pathway as pw
-
 
 # To use advanced features with Pathway Scale, get your free license key from
 # https://pathway.com/features and paste it below.
@@ -11,19 +9,14 @@ import pathway as pw
 pw.set_license_key("demo-license-key-with-telemetry")
 
 # set kafka credentials (from upstash)
-kafka_endpoint = "talented-cow-10356-eu1-kafka.upstash.io:9092"
-kafka_user = "kafka_user" # os.environ["UPSTASH_KAFKA_USER"]
-kafka_pass = "kafka_pass" # os.environ["UPSTASH_KAFKA_PASS"]
+kafka_endpoint = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
 
 # define kafka cluster settings
 rdkafka_settings = {
     "bootstrap.servers": kafka_endpoint,
-    "security.protocol": "sasl_ssl",
-    "sasl.mechanism": "SCRAM-SHA-256",
+    "security.protocol": "PLAINTEXT",
     "group.id": "$GROUP_NAME",
     "session.timeout.ms": "6000",
-    "sasl.username": kafka_user,
-    "sasl.password": kafka_pass,
 }
 
 
