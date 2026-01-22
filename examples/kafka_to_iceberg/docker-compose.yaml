@@ -102,6 +102,11 @@ services:
       KAFKA_TOPIC: events
       ICEBERG_CATALOG_URI: http://iceberg-rest:8181
       PATHWAY_LICENSE_KEY: ${PATHWAY_LICENSE_KEY:-}
+      # MinIO/S3 Configuration
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: password123
+      AWS_REGION: us-east-1
+      AWS_S3_ENDPOINT: http://minio:9000
     command: ["python", "kafka_to_iceberg.py"]
     depends_on:
       redpanda:
@@ -113,7 +118,8 @@ services:
   # Kafka Producer (for testing)
   # ===========================================================================
   kafka-producer:
-    image: python:3.11-slim
+    image:  kafka-prducer:dev
+    # image: python:3.11-slim
     container_name: kafka-producer
     working_dir: /app
     volumes:
@@ -121,8 +127,9 @@ services:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: redpanda:29092
       KAFKA_TOPIC: events
-    command: >
-      bash -c "pip install confluent-kafka && python kafka_producer.py"
+    # command: >
+    #   bash -c "pip install confluent-kafka && python kafka_producer.py"
+    command: ["python", "kafka_producer.py"]
     depends_on:
       redpanda:
         condition: service_healthy

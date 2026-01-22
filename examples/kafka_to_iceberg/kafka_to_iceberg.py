@@ -106,6 +106,13 @@ def create_kafka_to_iceberg_pipeline():
         # Configure Iceberg REST Catalog
         iceberg_catalog = pw.io.iceberg.RestCatalog(
             uri=ICEBERG_CATALOG_URI,
+            properties={
+                "s3.endpoint": os.environ.get("AWS_S3_ENDPOINT", "http://minio:9000"),
+                "s3.access-key-id": os.environ.get("AWS_ACCESS_KEY_ID", "admin"),
+                "s3.secret-access-key": os.environ.get("AWS_SECRET_ACCESS_KEY", "password123"),
+                "s3.path-style-access": "true",
+                "client.region": os.environ.get("AWS_REGION", "us-east-1"),
+            }
         )
 
         # Write to Iceberg
@@ -115,7 +122,7 @@ def create_kafka_to_iceberg_pipeline():
             catalog=iceberg_catalog,
             namespace=ICEBERG_NAMESPACE,
             table_name=ICEBERG_TABLE_NAME,
-            min_commit_frequency=5_000,  # Commit every 5 seconds
+            min_commit_frequency=1_000,  # Commit every 5 seconds
         )
 
     logger.info("Pipeline configured successfully")

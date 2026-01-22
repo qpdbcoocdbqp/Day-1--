@@ -54,6 +54,8 @@ In another terminal:
 
 ```bash
 python kafka_producer.py
+
+docker compose --profile producer up -d
 ```
 
 ## Configuration
