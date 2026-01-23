@@ -1,101 +1,101 @@
-services:
-  # 1. 儲存層: MinIO (模擬 S3)
-  minio:
-    image: minio/minio
-    container_name: minio
-    environment:
-      MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: password123
-    command: server /data --console-address ":9001"
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  # 初始化 MinIO Bucket
-  mc-setup:
-    image: minio/mc
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      /usr/bin/mc alias set myminio http://minio:9000 admin password123;
-      /usr/bin/mc mb myminio/warehouse;
-      exit 0;"
-
-  # 2. 中繼層: Iceberg REST Catalog
-  iceberg-rest:
-    image: tabulario/iceberg-rest:1.6.0
-    container_name: iceberg-rest
-    environment:
-      AWS_ACCESS_KEY_ID: admin
-      AWS_SECRET_ACCESS_KEY: password123
-      AWS_REGION: us-east-1
-      CATALOG_WAREHOUSE: s3://warehouse/
-      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
-      CATALOG_S3_ENDPOINT: http://minio:9000
-      CATALOG_S3_PATH__STYLE__ACCESS: "true"
-    ports:
-      - "8181:8181"
-    depends_on:
-      mc-setup:
-        condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD-SHELL", "ps aux | grep java || exit 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  # 3. 訊息隊列: Redpanda (相容 Kafka API)
-  redpanda:
-    image: docker.redpanda.com/redpandadata/redpanda:latest
-    container_name: redpanda
-    command:
-      - redpanda start
-      - --smp 1
-      - --overprovisioned
-      - --kafka-addr internal://0.0.0.0:29092,external://0.0.0.0:9092
-      - --advertise-kafka-addr internal://redpanda:29092,external://localhost:9092
-    ports:
-      - "9092:9092"
-    healthcheck:
-      test: ["CMD", "rpk", "cluster", "info"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  # 4. 接入層: Kafka Connect (帶有 Iceberg Sink)
-  # 注意：你需要下載 Iceberg Sink Connector 並放入 ./connectors 目錄
-  kafka-connect:
-    image: confluentinc/cp-kafka-connect:7.5.0
-    container_name: kafka-connect
+volumes:  
+  data: {}  
+  
+services:  
+  connector-builder:
+    image: gradle:8.5-jdk17
+    working_dir: /home/gradle/project
     volumes:
-      - ./packages:/usr/share/confluent-hub-components
-    environment:
-      CONNECT_BOOTSTRAP_SERVERS: redpanda:29092
-      CONNECT_REST_PORT: 8083
-      CONNECT_GROUP_ID: "connect-cluster"
-      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
-      CONNECT_CONFIG_STORAGE_TOPIC: "connect-configs"
-      CONNECT_OFFSET_STORAGE_TOPIC: "connect-offsets"
-      CONNECT_STATUS_STORAGE_TOPIC: "connect-status"
-      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
-      CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
-      CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
-      CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
-      CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect"
-      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
-    ports:
-      - "8083:8083"
-    depends_on:
-      redpanda:
-        condition: service_healthy
-      iceberg-rest:
-        condition: service_healthy
+      - ..:/home/gradle/project
+    command: sh -c "./gradlew -x test -x integrationTest clean build"
+
+  minio:  
+    image: minio/minio  
+    hostname: minio  
+    environment:  
+      - MINIO_ROOT_USER=minioadmin  
+      - MINIO_ROOT_PASSWORD=minioadmin  
+    ports:  
+      - 9000:9000  
+      - 9001:9001  
+    volumes:  
+      - data:/data  
+    command: server /data --console-address ":9001"  
+  
+  create-bucket:  
+    image: minio/mc  
+    depends_on:  
+      - minio  
+    volumes:  
+      - data:/data  
+    entrypoint: mc mb /data/bucket  
+  
+  iceberg:  
+    image: apache/iceberg-rest-fixture  
+    depends_on:  
+      - create-bucket  
+    hostname: iceberg  
+    ports:  
+      - 8181:8181  
+    environment:  
+      - AWS_REGION=us-east-1  
+      - CATALOG_WAREHOUSE=s3://bucket/warehouse/  
+      - CATALOG_URI=jdbc:sqlite:file:/tmp/iceberg_rest_mode=memory  
+      - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO  
+      - CATALOG_S3_ENDPOINT=http://minio:9000  
+      - CATALOG_S3_PATH__STYLE__ACCESS=true  
+      - CATALOG_S3_ACCESS__KEY__ID=minioadmin  
+      - CATALOG_S3_SECRET__ACCESS__KEY=minioadmin  
+  
+  kafka:  
+    image: confluentinc/cp-kafka:7.8.1  
+    hostname: kafka  
+    ports:  
+      - 29092:29092  
+    environment:  
+      KAFKA_NODE_ID: 1  
+      KAFKA_LISTENERS: BROKER://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:29092  
+      KAFKA_ADVERTISED_LISTENERS: BROKER://kafka:9092,EXTERNAL://localhost:29092  
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: BROKER:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT  
+      KAFKA_INTER_BROKER_LISTENER_NAME: BROKER  
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER  
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093  
+      KAFKA_PROCESS_ROLES: broker,controller  
+      KAFKA_JMX_PORT: 9101  
+      KAFKA_JMX_HOSTNAME: localhost  
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1  
+      KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS: 1  
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1  
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1  
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0  
+      CLUSTER_ID: E-JXLvCaTiaUYDb1LwZ1JQ  
+  
+  connect:  
+    image: confluentinc/cp-kafka-connect:7.8.1  
+    depends_on:  
+      - kafka  
+      - kafka
+      - iceberg
+      - connector-builder
+    hostname: connect  
+    ports:  
+      - 8083:8083  
+    volumes:  
+      - ../build/install:/test/kafka-connect  
+    environment:  
+      CONNECT_REST_ADVERTISED_HOST_NAME: localhost  
+      CONNECT_REST_PORT: 8083  
+      CONNECT_GROUP_ID: kc  
+      CONNECT_CONFIG_STORAGE_TOPIC: kc-config  
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1  
+      CONNECT_OFFSET_STORAGE_TOPIC: kc-offsets  
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1  
+      CONNECT_STATUS_STORAGE_TOPIC: kc-storage  
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1  
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter  
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: false  
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter  
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: false  
+      CONNECT_PLUGIN_PATH: /test/kafka-connect  
+      CONNECT_BOOTSTRAP_SERVERS: kafka:9092  
+      CONNECT_OFFSET_FLUSH_INTERVAL_MS: 500

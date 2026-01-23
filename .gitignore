@@ -3,5 +3,9 @@
 .env
 *.pyc
 *.csv
+*.jar
+*.zip
 
 dev-*
+
+k2i/iceberg/
