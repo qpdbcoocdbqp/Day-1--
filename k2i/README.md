@@ -90,4 +90,7 @@ curl -X POST http://localhost:8083/connectors \
   }'
 
 curl http://localhost:8083/connectors/events-sink/status
+
+docker exec -it kafka kafka-console-producer --broker-list localhost:9092 --topic events-topic
+
 ```

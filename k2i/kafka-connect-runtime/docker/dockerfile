@@ -1,0 +1,14 @@
+FROM eclipse-temurin:17-jdk-jammy AS builder
+
+RUN apt-get update && apt-get install -y sed
+
+WORKDIR /app
+COPY . .
+
+RUN sed -i 's/\r$//' gradlew && chmod +x gradlew
+ENV GRADLE_OPTS="-Dhttps.protocols=TLSv1.2 -Dorg.gradle.internal.http.connectionTimeout=120000 -Dorg.gradle.internal.http.socketTimeout=120000"
+RUN /bin/bash ./gradlew :iceberg-kafka-connect:iceberg-kafka-connect-runtime:assemble \
+    --no-daemon
+
+FROM scratch AS exporter
+COPY --from=builder /app/kafka-connect/kafka-connect-runtime/build /
