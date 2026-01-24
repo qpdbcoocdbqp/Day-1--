@@ -13,7 +13,6 @@ Streaming EL exploration. Playing with [Day 1 ◑](https://www.youtube.com/watch
 
 ## Exploration
 
-
 * **Setup**
 
     ```sh
@@ -49,3 +48,71 @@ Streaming EL exploration. Playing with [Day 1 ◑](https://www.youtube.com/watch
     # generate batch input, write 1000 files or duration time is 30 seconds.
     python -m src.input_generate --mode batch --files 1000 --duration 30
     ```
+
+
+### Dev in Docker
+
+* **build docker image**
+
+    ```sh
+    cd examples/pathway_demo
+    docker build -t kafka-prducer:dev .
+    ```
+* **pull pathway image**
+
+    ```sh
+    docker pull pathwaycom/pathway:0.28.0
+    ```
+
+* **run docker compose**
+
+    ```sh
+    cd examples/pathway_demo
+    docker compose up -d
+    ```
+
+### Monitor
+
+* **start compose**
+
+    ```sh
+    cd examples\local_monitoring_demo
+    docker compose up -d
+    ```
+
+* **run pathway (kafka source)**
+
+    ```sh
+    cd examples\local_monitoring_demo
+    python kafka_app.py
+    ```
+
+* **run kafka producer**
+
+    ```sh
+    # install kafka
+    uv pip install confluent_kafka
+
+    # run producer
+    cd examples\local_monitoring_demo
+    python kafka_producer.py
+    ```
+
+* **Dashboard**
+
+  * **Grafana**: `http://localhost:3000`
+
+
+### Kafka Linear Regression
+
+* **run compose**
+
+```sh
+cd examples\kafka_linear_regression
+docker compose up -d
+```
+
+* **check result**
+```sh
+cd examples/kafka_linear_regression/src
+```
