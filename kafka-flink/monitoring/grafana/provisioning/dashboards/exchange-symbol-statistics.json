@@ -1,0 +1,32 @@
+{
+  "title": "Exchange Symbol Statistics",
+  "uid": "exchange-symbol-statistics",
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": {"from": "now-6h", "to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "symbol",
+        "label": "Symbol",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "query": {"query": "label_values(exchange_symbol_average_price, symbol)", "refId": "PrometheusVariableQueryEditor-VariableQuery"},
+        "refresh": 2,
+        "sort": 1,
+        "current": {"text": "BTC-USD", "value": "BTC-USD"}
+      }
+    ]
+  },
+  "panels": [
+    {"type":"stat","title":"Latest average price","gridPos":{"x":0,"y":0,"w":6,"h":4},"fieldConfig":{"defaults":{"unit":"currencyUSD"}},"targets":[{"expr":"exchange_symbol_average_price{symbol=\"$symbol\"}","refId":"A"}]},
+    {"type":"stat","title":"Latest low price","gridPos":{"x":6,"y":0,"w":6,"h":4},"fieldConfig":{"defaults":{"unit":"currencyUSD"}},"targets":[{"expr":"exchange_symbol_low_price{symbol=\"$symbol\"}","refId":"A"}]},
+    {"type":"stat","title":"Latest high price","gridPos":{"x":12,"y":0,"w":6,"h":4},"fieldConfig":{"defaults":{"unit":"currencyUSD"}},"targets":[{"expr":"exchange_symbol_high_price{symbol=\"$symbol\"}","refId":"A"}]},
+    {"type":"stat","title":"Trades in latest window","gridPos":{"x":18,"y":0,"w":6,"h":4},"fieldConfig":{"defaults":{"decimals":0}},"targets":[{"expr":"exchange_symbol_trade_count{symbol=\"$symbol\"}","refId":"A"}]},
+    {"type":"timeseries","title":"Price history","gridPos":{"x":0,"y":4,"w":16,"h":9},"fieldConfig":{"defaults":{"unit":"currencyUSD"}},"targets":[{"expr":"exchange_symbol_average_price{symbol=\"$symbol\"}","legendFormat":"Average","refId":"A"},{"expr":"exchange_symbol_low_price{symbol=\"$symbol\"}","legendFormat":"Low","refId":"B"},{"expr":"exchange_symbol_high_price{symbol=\"$symbol\"}","legendFormat":"High","refId":"C"}]},
+    {"type":"timeseries","title":"Trade count by window","gridPos":{"x":16,"y":4,"w":8,"h":9},"fieldConfig":{"defaults":{"decimals":0}},"targets":[{"expr":"exchange_symbol_trade_count{symbol=\"$symbol\"}","legendFormat":"Trades","refId":"A"}]},
+    {"type":"timeseries","title":"Quantity history","gridPos":{"x":0,"y":13,"w":16,"h":9},"targets":[{"expr":"exchange_symbol_total_quantity{symbol=\"$symbol\"}","legendFormat":"Total","refId":"A"},{"expr":"exchange_symbol_buy_quantity{symbol=\"$symbol\"}","legendFormat":"Buy","refId":"B"},{"expr":"exchange_symbol_sell_quantity{symbol=\"$symbol\"}","legendFormat":"Sell","refId":"C"}]},
+    {"type":"stat","title":"Latest completed window","gridPos":{"x":16,"y":13,"w":8,"h":4},"fieldConfig":{"defaults":{"unit":"dateTimeAsIso"}},"targets":[{"expr":"exchange_symbol_window_end_timestamp_seconds{symbol=\"$symbol\"} * 1000","refId":"A"}]},
+    {"type":"stat","title":"Statistics age","gridPos":{"x":16,"y":17,"w":8,"h":5},"fieldConfig":{"defaults":{"unit":"s"}},"targets":[{"expr":"time() - exchange_symbol_window_end_timestamp_seconds{symbol=\"$symbol\"}","refId":"A"}]}
+  ]
+}

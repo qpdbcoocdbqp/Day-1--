@@ -1,0 +1,19 @@
+groups:
+  - name: kafka-flink
+    rules:
+      - alert: KafkaConsumerLagHigh
+        expr: sum by (consumergroup, topic) (clamp_min(kafka_consumergroup_lag, 0)) > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Kafka consumer lag is high
+          description: Consumer group {{ $labels.consumergroup }} on {{ $labels.topic }} is above 1000 messages.
+
+      - alert: FlinkTaskManagerDown
+        expr: up{job="flink-taskmanager"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Flink TaskManager metrics are unavailable

@@ -1,0 +1,13 @@
+{
+  "title": "Kafka and Flink Overview",
+  "uid": "kafka-flink-overview",
+  "schemaVersion": 39,
+  "refresh": "5s",
+  "time": {"from": "now-15m", "to": "now"},
+  "panels": [
+    {"type":"stat","title":"Kafka consumer lag","gridPos":{"x":0,"y":0,"w":6,"h":4},"targets":[{"expr":"sum(clamp_min(kafka_consumergroup_lag, 0))","refId":"A"}]},
+    {"type":"stat","title":"Flink TaskManagers up","gridPos":{"x":6,"y":0,"w":6,"h":4},"targets":[{"expr":"sum(up{job=\"flink-taskmanager\"})","refId":"A"}]},
+    {"type":"timeseries","title":"Consumer lag by topic/group","gridPos":{"x":0,"y":4,"w":12,"h":8},"targets":[{"expr":"sum by (consumergroup, topic) (clamp_min(kafka_consumergroup_lag, 0))","legendFormat":"{{consumergroup}} / {{topic}}","refId":"A"}]},
+    {"type":"timeseries","title":"Flink total records in/out","gridPos":{"x":0,"y":12,"w":12,"h":8},"targets":[{"expr":"sum(rate(flink_taskmanager_job_task_operator_numRecordsIn[1m]))","legendFormat":"records in / sec","refId":"A"},{"expr":"sum(rate(flink_taskmanager_job_task_operator_numRecordsOut[1m]))","legendFormat":"records out / sec","refId":"B"}]}
+  ]
+}
