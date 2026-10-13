@@ -1,0 +1,38 @@
+{
+  "type": "kafka",
+  "spec": {
+    "ioConfig": {
+      "type": "kafka",
+      "topic": "exchange.symbol-statistics",
+      "consumerProperties": { "bootstrap.servers": "kafka:9092" },
+      "inputFormat": { "type": "json" },
+      "useEarliestOffset": true,
+      "taskCount": 1,
+      "replicas": 1,
+      "taskDuration": "PT10M"
+    },
+    "dataSchema": {
+      "dataSource": "exchange_symbol_statistics",
+      "timestampSpec": { "column": "window_start", "format": "auto" },
+      "dimensionsSpec": {
+        "dimensions": [
+          "symbol",
+          { "type": "string", "name": "window_end" },
+          { "type": "long", "name": "trade_count" },
+          { "type": "double", "name": "total_quantity" },
+          { "type": "double", "name": "low_price" },
+          { "type": "double", "name": "high_price" },
+          { "type": "double", "name": "average_price" },
+          { "type": "double", "name": "buy_quantity" },
+          { "type": "double", "name": "sell_quantity" }
+        ]
+      },
+      "granularitySpec": {
+        "segmentGranularity": "hour",
+        "queryGranularity": "none",
+        "rollup": false
+      }
+    },
+    "tuningConfig": { "type": "kafka" }
+  }
+}

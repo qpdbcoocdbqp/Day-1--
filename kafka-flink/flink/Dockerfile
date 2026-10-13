@@ -12,3 +12,7 @@ COPY --from=connector /tmp/flink-sql-connector-kafka.jar /opt/flink/lib/flink-sq
 RUN curl --fail --location --show-error \
     "https://repo.maven.apache.org/maven2/org/apache/flink/flink-metrics-prometheus/1.20.1/flink-metrics-prometheus-1.20.1.jar" \
     --output /opt/flink/lib/flink-metrics-prometheus.jar
+
+# Named volumes copy this ownership on first creation, so no root init container is needed.
+RUN mkdir -p /opt/flink/checkpoints /opt/flink/savepoints \
+ && chown -R flink:flink /opt/flink/checkpoints /opt/flink/savepoints

@@ -9,6 +9,7 @@ services:
   kafka:
     image: apache/kafka:3.9.0
     hostname: kafka
+    command: ["/bin/sh", "/opt/start-kafka.sh"]
     restart: unless-stopped
     stop_grace_period: 30s
     ports:
@@ -29,28 +30,13 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
     healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list 2>/dev/null | grep -qx exchange.trades && /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list 2>/dev/null | grep -qx exchange.symbol-statistics"]
       interval: 5s
       timeout: 5s
       retries: 20
     volumes:
       - kafka-data:/var/lib/kafka/data
-
-  kafka-init:
-    image: apache/kafka:3.9.0
-    depends_on:
-      kafka:
-        condition: service_healthy
-    command:
-      - /bin/sh
-      - -ec
-      - |
-        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
-          --create --if-not-exists --topic exchange.trades \
-          --partitions 3 --replication-factor 1
-        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 \
-          --create --if-not-exists --topic exchange.symbol-statistics \
-          --partitions 3 --replication-factor 1
+      - ./kafka/start-kafka.sh:/opt/start-kafka.sh:ro
 
   kafka-exporter:
     image: danielqsj/kafka-exporter:v1.9.0
@@ -69,34 +55,21 @@ services:
       kafka:
         condition: service_healthy
 
-  flink-storage-init:
-    image: busybox:1.36
-    user: "0:0"
-    command:
-      - /bin/sh
-      - -ec
-      - |
-        mkdir -p /opt/flink/checkpoints /opt/flink/savepoints
-        chmod -R 0777 /opt/flink/checkpoints /opt/flink/savepoints
-    volumes:
-      - flink-checkpoints:/opt/flink/checkpoints
-      - flink-savepoints:/opt/flink/savepoints
-
   jobmanager:
     <<: *flink-image
-    command: jobmanager
+    command: ["/bin/bash", "/opt/flink/usrlib/start-jobmanager.sh"]
     restart: unless-stopped
     stop_grace_period: 30s
     depends_on:
-      flink-storage-init:
-        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
     ports:
       - "8081:8081"
     volumes:
       - flink-checkpoints:/opt/flink/checkpoints
       - flink-savepoints:/opt/flink/savepoints
       - ./flink/trading.sql:/opt/flink/usrlib/trading.sql:ro
-      - ./flink/submit-job.sh:/opt/flink/usrlib/submit-job.sh:ro
+      - ./flink/start-jobmanager.sh:/opt/flink/usrlib/start-jobmanager.sh:ro
     environment:
       FLINK_PROPERTIES: |
         jobmanager.rpc.address: jobmanager
@@ -154,8 +127,8 @@ services:
     build:
       context: ./client
     depends_on:
-      kafka-init:
-        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_INPUT_TOPIC: exchange.trades
@@ -211,9 +184,108 @@ services:
       prometheus:
         condition: service_healthy
 
+  # ---- Druid (sink via Kafka topic exchange.symbol-statistics) ----
+  zookeeper:
+    image: zookeeper:3.9.3
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "echo srvr | nc localhost 2181 | grep -q Zookeeper"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  druid-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: druid
+      POSTGRES_PASSWORD: druid
+      POSTGRES_DB: druid
+    volumes:
+      - druid-metadata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U druid"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  coordinator:
+    image: apache/druid:31.0.0
+    command: coordinator
+    restart: unless-stopped
+    env_file: ./druid/environment
+    volumes:
+      - druid-shared:/opt/shared
+      - druid-coordinator:/opt/druid/var
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+      druid-postgres:
+        condition: service_healthy
+
+  broker:
+    image: apache/druid:31.0.0
+    command: broker
+    restart: unless-stopped
+    env_file: ./druid/environment
+    volumes:
+      - druid-broker:/opt/druid/var
+    depends_on:
+      - coordinator
+
+  historical:
+    image: apache/druid:31.0.0
+    command: historical
+    restart: unless-stopped
+    env_file: ./druid/environment
+    volumes:
+      - druid-shared:/opt/shared
+      - druid-historical:/opt/druid/var
+    depends_on:
+      - coordinator
+
+  middlemanager:
+    image: apache/druid:31.0.0
+    command: middleManager
+    restart: unless-stopped
+    env_file: ./druid/environment
+    volumes:
+      - druid-shared:/opt/shared
+      - druid-middlemanager:/opt/druid/var
+    depends_on:
+      coordinator:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+
+  router:
+    image: apache/druid:31.0.0
+    entrypoint: ["/bin/sh", "/spec/start-router.sh"]
+    restart: unless-stopped
+    env_file: ./druid/environment
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./druid:/spec:ro
+      - druid-router:/opt/druid/var
+    depends_on:
+      - coordinator
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8888/status/health | grep -q true"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
 volumes:
   kafka-data:
   flink-checkpoints:
   flink-savepoints:
   prometheus-data:
   grafana-data:
+  druid-metadata:
+  druid-shared:
+  druid-coordinator:
+  druid-broker:
+  druid-historical:
+  druid-middlemanager:
+  druid-router:
