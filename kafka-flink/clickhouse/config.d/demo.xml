@@ -1,0 +1,7 @@
+<clickhouse>
+    <!-- Read exchange.symbol-statistics from the start, like Druid's useEarliestOffset.
+         librdkafka already defaults to isolation.level=read_committed, so Flink's open transactions stay hidden. -->
+    <kafka>
+        <auto_offset_reset>earliest</auto_offset_reset>
+    </kafka>
+</clickhouse>

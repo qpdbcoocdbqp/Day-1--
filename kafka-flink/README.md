@@ -1,27 +1,80 @@
 # Kafka + Flink Trading Demo
 
-A Python client sends trades to Kafka. Flink SQL calculates per-symbol statistics in 10-second event-time windows, and Druid ingests the results.
+A Python client sends trades to Kafka. Flink SQL calculates per-symbol statistics in 10-second event-time windows, an OLAP store (ClickHouse or Druid) ingests the results, and a web UI charts and queries them.
 
 ```text
-mock-client → Kafka exchange.trades → Flink SQL → Kafka exchange.symbol-statistics → Druid
+mock-client → Kafka exchange.trades → Flink SQL → Kafka exchange.symbol-statistics → ClickHouse or Druid → UI
 ```
 
 ## Quick Start
 
-Requires Docker Compose and about 6 GB of memory.
+Requires Docker Compose. With ClickHouse the stack needs about 3 GB of memory; with Druid about 6 GB.
 
 ```bash
 docker compose up --build -d
 docker compose ps
 ```
 
-Everything sets itself up: Kafka creates its topics, the JobManager submits the Flink SQL job ([flink/start-jobmanager.sh](flink/start-jobmanager.sh)), and the Druid router registers the Kafka supervisor ([druid/start-router.sh](druid/start-router.sh)). To submit the Flink job again, run `docker compose restart jobmanager`.
+Open the UI at http://localhost:8080.
+
+Everything sets itself up: Kafka creates its topics, the JobManager submits the Flink SQL job ([flink/start-jobmanager.sh](flink/start-jobmanager.sh)), ClickHouse creates its tables from [clickhouse/init.sql](clickhouse/init.sql), and the Druid router registers the Kafka supervisor ([druid/start-router.sh](druid/start-router.sh)). To submit the Flink job again, run `docker compose restart jobmanager`.
 
 Read the Flink output:
 
 ```bash
 docker compose run --rm mock-client consume --from-beginning
 ```
+
+## Choosing ClickHouse or Druid
+
+[.env](.env) picks the OLAP store:
+
+```dotenv
+OLAP_BACKEND=clickhouse   # or druid
+COMPOSE_PROFILES=${OLAP_BACKEND}
+```
+
+`COMPOSE_PROFILES` starts only that store's services, and the UI reads `OLAP_BACKEND` to decide which one to query. Stop the stack before switching so the other store's containers are removed:
+
+```bash
+docker compose down
+# edit OLAP_BACKEND in .env
+docker compose up -d
+```
+
+Each store keeps its own volumes, so switching back shows the data it stored before.
+
+| | ClickHouse | Druid |
+| --- | --- | --- |
+| Containers | 1 | 7 (ZooKeeper, PostgreSQL, coordinator, broker, historical, middleManager, router) |
+| Memory in this demo | about 550 MB | about 2.9 GB |
+| Reads Kafka with | Kafka table engine and a materialized view | Kafka supervisor |
+| Delivery | At-least-once; `ReplacingMergeTree` collapses duplicates, so query with `FINAL` | Exactly-once |
+| Console | http://localhost:8123/play (user and password `clickhouse`) | http://localhost:8888 |
+
+## UI
+
+http://localhost:8080 shows:
+
+- The latest window for each symbol, with the change from the previous window.
+- Average price with its low–high range, and buy versus sell quantity, for one symbol over 5 minutes to 6 hours. Longer ranges are rolled up into larger buckets so a chart never has more than 120 points.
+- A table of the plotted values.
+- A SQL console. Queries are read-only: ClickHouse runs them with `readonly=2`, and Druid's SQL endpoint does not run `INSERT`. Only the first 1,000 rows are returned.
+
+[ui/app.py](ui/app.py) queries the store over its HTTP SQL API; [ui/static/](ui/static/) is plain HTML and JavaScript with no CDN dependencies.
+
+## ClickHouse
+
+Like Druid, ClickHouse reads `exchange.symbol-statistics` itself, so the Flink job is the same for both stores. In [clickhouse/init.sql](clickhouse/init.sql), the `exchange_symbol_statistics_queue` table (Kafka engine) consumes the topic, and a materialized view copies each batch into `exchange_symbol_statistics`.
+
+```sql
+SELECT window_start, symbol, trade_count, average_price
+FROM exchange_symbol_statistics FINAL
+ORDER BY window_start DESC
+LIMIT 20
+```
+
+`init.sql` runs only when the `clickhouse-data` volume is empty. To apply schema changes, remove that volume and start ClickHouse again.
 
 ## Druid
 
@@ -38,8 +91,10 @@ LIMIT 20
 
 | Service | URL | Purpose |
 | --- | --- | --- |
+| UI | http://localhost:8080 | Symbol statistics and SQL console |
 | Flink | http://localhost:8081 | Jobs, TaskManagers, checkpoints |
-| Druid | http://localhost:8888 | SQL queries, ingestion status |
+| ClickHouse | http://localhost:8123/play | SQL queries (ClickHouse mode) |
+| Druid | http://localhost:8888 | SQL queries, ingestion status (Druid mode) |
 | Grafana | http://localhost:3000 | Kafka, Flink, and symbol statistics dashboards |
 | Prometheus | http://localhost:9090 | Metrics and alerts |
 | Kafka exporter | http://localhost:9308/metrics | Consumer lag |

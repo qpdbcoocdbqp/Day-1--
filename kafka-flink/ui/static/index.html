@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Exchange Statistics</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2 12l4-5 3 3 5-7' fill='none' stroke='%232a78d6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Exchange statistics</h1>
+      <p class="subtitle">Flink 10-second windows from Kafka, queried from <strong id="backend-name">…</strong></p>
+    </div>
+    <div class="status" id="status" data-state="pending" role="status">
+      <span class="status-icon" aria-hidden="true"></span>
+      <span id="status-label">Connecting</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="banner" id="banner" hidden>
+      <span class="status-icon" aria-hidden="true"></span>
+      <div>
+        <strong id="banner-title"></strong>
+        <span id="banner-detail"></span>
+      </div>
+    </div>
+
+    <section aria-labelledby="tiles-heading">
+      <div class="section-head">
+        <h2 id="tiles-heading">Latest window per symbol</h2>
+        <span class="muted" id="updated"></span>
+      </div>
+      <div class="tiles" id="tiles"></div>
+    </section>
+
+    <div class="filters" role="toolbar" aria-label="Chart filters">
+      <div class="segmented" role="group" aria-label="Time range" id="ranges"></div>
+      <div class="segmented" role="group" aria-label="Symbol" id="symbols"></div>
+      <label class="switch"><input type="checkbox" id="auto-refresh" checked> Auto-refresh every 5 s</label>
+    </div>
+
+    <div class="charts">
+      <article class="card">
+        <header class="card-head">
+          <h3 id="price-title">Average price</h3>
+          <p class="card-sub" id="price-sub"></p>
+        </header>
+        <ul class="legend">
+          <li><span class="key key-line"></span>Average price</li>
+          <li><span class="key key-band"></span>Low–high range</li>
+        </ul>
+        <div class="chart" id="price-chart" tabindex="0"
+             aria-label="Average price chart. Use the arrow keys to read each window; the table below has every value."></div>
+      </article>
+
+      <article class="card">
+        <header class="card-head">
+          <h3 id="flow-title">Buy and sell quantity</h3>
+          <p class="card-sub" id="flow-sub"></p>
+        </header>
+        <ul class="legend">
+          <li><span class="key key-bar buy"></span>Buy, above zero</li>
+          <li><span class="key key-bar sell"></span>Sell, below zero</li>
+        </ul>
+        <div class="chart" id="flow-chart" tabindex="0"
+             aria-label="Buy and sell quantity chart. Use the arrow keys to read each window; the table below has every value."></div>
+      </article>
+    </div>
+
+    <article class="card">
+      <header class="card-head">
+        <h3 id="table-title">Windows</h3>
+        <p class="card-sub" id="table-sub"></p>
+      </header>
+      <div class="table-wrap">
+        <table class="data" id="windows-table">
+          <thead>
+            <tr>
+              <th id="windows-time-heading">Window start</th>
+              <th class="num">Trades</th>
+              <th class="num">Low</th>
+              <th class="num">Average</th>
+              <th class="num">High</th>
+              <th class="num">Buy qty</th>
+              <th class="num">Sell qty</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="card">
+      <header class="card-head">
+        <h3>SQL console</h3>
+        <p class="card-sub">Read-only queries against <code>exchange_symbol_statistics</code>. Press Ctrl+Enter to run.</p>
+      </header>
+      <textarea id="sql" rows="9" spellcheck="false" aria-label="SQL query"></textarea>
+      <div class="sql-actions">
+        <button type="button" class="primary" id="run-sql">Run query</button>
+        <button type="button" id="reset-sql">Reset example</button>
+        <span class="muted" id="sql-meta" role="status"></span>
+      </div>
+      <pre class="sql-error" id="sql-error" role="alert" hidden></pre>
+      <div class="table-wrap" id="sql-result-wrap" hidden>
+        <table class="data" id="sql-result"></table>
+      </div>
+    </article>
+  </main>
+
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>

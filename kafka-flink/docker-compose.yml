@@ -184,9 +184,56 @@ services:
       prometheus:
         condition: service_healthy
 
-  # ---- Druid (sink via Kafka topic exchange.symbol-statistics) ----
+  # Web UI for whichever OLAP store OLAP_BACKEND (.env) selects.
+  ui:
+    build:
+      context: ./ui
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      OLAP_BACKEND: ${OLAP_BACKEND:-clickhouse}
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+      DRUID_URL: http://router:8888
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---- ClickHouse (profile: clickhouse), Kafka engine reads exchange.symbol-statistics ----
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.8
+    profiles: [clickhouse]
+    restart: unless-stopped
+    ports:
+      - "8123:8123"
+    environment:
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./clickhouse/config.d/demo.xml:/etc/clickhouse-server/config.d/demo.xml:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8123/ping | grep -q Ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # ---- Druid (profile: druid), Kafka supervisor reads exchange.symbol-statistics ----
   zookeeper:
     image: zookeeper:3.9.3
+    profiles: [druid]
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "echo srvr | nc localhost 2181 | grep -q Zookeeper"]
@@ -196,6 +243,7 @@ services:
 
   druid-postgres:
     image: postgres:16-alpine
+    profiles: [druid]
     restart: unless-stopped
     environment:
       POSTGRES_USER: druid
@@ -211,6 +259,7 @@ services:
 
   coordinator:
     image: apache/druid:31.0.0
+    profiles: [druid]
     command: coordinator
     restart: unless-stopped
     env_file: ./druid/environment
@@ -225,6 +274,7 @@ services:
 
   broker:
     image: apache/druid:31.0.0
+    profiles: [druid]
     command: broker
     restart: unless-stopped
     env_file: ./druid/environment
@@ -235,6 +285,7 @@ services:
 
   historical:
     image: apache/druid:31.0.0
+    profiles: [druid]
     command: historical
     restart: unless-stopped
     env_file: ./druid/environment
@@ -246,6 +297,7 @@ services:
 
   middlemanager:
     image: apache/druid:31.0.0
+    profiles: [druid]
     command: middleManager
     restart: unless-stopped
     env_file: ./druid/environment
@@ -260,6 +312,7 @@ services:
 
   router:
     image: apache/druid:31.0.0
+    profiles: [druid]
     entrypoint: ["/bin/sh", "/spec/start-router.sh"]
     restart: unless-stopped
     env_file: ./druid/environment
@@ -282,6 +335,7 @@ volumes:
   flink-savepoints:
   prometheus-data:
   grafana-data:
+  clickhouse-data:
   druid-metadata:
   druid-shared:
   druid-coordinator:
